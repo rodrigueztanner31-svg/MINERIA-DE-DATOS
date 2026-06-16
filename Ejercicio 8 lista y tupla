@@ -9,7 +9,7 @@ print(estudiantes,"estudiantes")
 print(alumnos,"alumnos")
 estudiantes.append("Angel")
 print(estudiantes, "estudiantes")
-print(alumnos.count("Jose"))
+print(alumnos.count("liss"))
 print(len(alumnos))
      
 ['liss', 'Diego'] alumnos
