@@ -7,5 +7,5 @@
 - [3.Correlaciones](https://github.com/rodrigueztanner31-svg/MINERIA-DE-DATOS/blob/main/correlacion%20ejercicio%203)
 - [4. Tablas ](https://github.com/rodrigueztanner31-svg/MINERIA-DE-DATOS/blob/main/Tablas)
 - [5. Arbol ]()
-- [6. Tabla de comparación]()
+- [6. Tabla de comparación](https://github.com/rodrigueztanner31-svg/MINERIA-DE-DATOS/blob/main/Screenshot_20260716-074316-display-0.png.png)
 - [7. Metodos estadisticos y modelos predictivos](https://github.com/rodrigueztanner31-svg/MINERIA-DE-DATOS/blob/main/M%C3%A9todos%20estad%C3%ADsticos%20y%20modelos%20de%20predictivos)
