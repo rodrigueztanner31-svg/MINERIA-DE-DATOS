@@ -1,0 +1,73 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("estudiantes.csv")
+
+variables = ["Matricula", "Edad", "Asistencia", "Tareas", "Examen"]
+
+fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(12, 14))
+
+axes = axes.flatten()
+
+for i, var in enumerate(variables):
+    axes[i].scatter(df[var], df["Calificacion_Final"], color="royalblue", alpha=0.7)
+    axes[i].set_xlabel(var)
+    axes[i].set_ylabel("Calificación Final")
+    axes[i].set_title(f"{var} vs Calificación Final")
+    axes[i].grid(True, linestyle="--", alpha=0.5)
+
+axes[-1].axis('off')
+
+plt.tight_layout()
+plt.show()
+
+# GRACIFA LINEAL
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("estudiantes.csv")
+
+df_agrupado = df.groupby("Horas_Estudio")["Calificacion_Final"].mean().reset_index()
+
+plt.figure(figsize=(9, 6))
+plt.bar(df_agrupado["Horas_Estudio"], df_agrupado["Calificacion_Final"], color="teal", alpha=0.8)
+
+plt.xlabel("Horas de Estudio")
+plt.ylabel("Calificación Final Promedio")
+plt.title("Calificación Final Promedio según Horas de Estudio")
+
+plt.grid(axis='y', linestyle='--', alpha=0.5) 
+plt.tight_layout()
+
+plt.show() 
+
+# HISTOGRAMA
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("estudiantes.csv")
+
+media = df["Horas_Estudio"].mean()
+bajas = df[df["Horas_Estudio"] <= media]["Calificacion_Final"]
+altas = df[df["Horas_Estudio"] > media]["Calificacion_Final"]
+
+plt.hist(bajas, bins=5, alpha=0.6, label="Poco Estudio", color="indianred")
+plt.hist(altas, bins=5, alpha=0.6, label="Mucho Estudio", color="teal")
+
+plt.xlabel("Calificación final")
+plt.ylabel("Estudiantes")
+plt.title("Distribución de Calificaciones")
+plt.legend()
+plt.show()
+
+# BOXPLOX
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("estudiantes.csv")
+
+df["Grupo_Tareas"] = df["Tareas"].apply(lambda x: "Cumplió" if x > df["Tareas"].mean() else "Faltaron")
+
+df.boxplot(column="Calificacion_Final", by="Grupo_Tareas")
+plt.suptitle("Impacto de las Tareas en la Calificación Final")
+plt.show()
