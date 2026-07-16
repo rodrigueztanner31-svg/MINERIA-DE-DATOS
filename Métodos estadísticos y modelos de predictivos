@@ -1,0 +1,112 @@
+# =====================================================================
+# PRÁCTICA 7: MÉTODOS ESTADÍSTICOS Y MODELOS PREDICTIVOS
+# =====================================================================
+
+import pandas as pd
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier, export_text  
+from sklearn.naive_bayes import GaussianNB
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.metrics import classification_report, accuracy_score, mean_squared_error, r2_score
+
+df = pd.read_csv('dataset_sucursales_mensual.csv')
+
+df = df.dropna().reset_index(drop=True)
+
+print("=== PRÁCTICA 7: ANÁLISIS ESTADÍSTICO Y PREDICTIVO ===\n")
+
+# =====================================================================
+# PARTE 1: MEDIDAS DE TENDENCIA CENTRAL Y DISPERSIÓN
+# =====================================================================
+print("--- 1. Medidas de Tendencia Central y Dispersión ---")
+columnas_interes = ['Gasto_Publicidad', 'Clientes_Atendidos', 'Satisfaccion_Cliente', 'Descuento_Promedio', 'Ventas_Totales']
+
+estadisticos = df[columnas_interes].describe().T
+
+estadisticos['median'] = df[columnas_interes].median()
+estadisticos['var'] = df[columnas_interes].var()
+
+estadisticos = estadisticos[['count', 'mean', 'median', 'std', 'var', 'min', 'max']]
+print(estadisticos.round(2))
+
+print("\n" + "="*60 + "\n")
+
+# =====================================================================
+# PARTE 2: ANÁLISIS DE CORRELACIONES
+# =====================================================================
+print("--- 2. Análisis de Correlaciones con Ventas ---")
+correlaciones = df[columnas_interes].corr()['Ventas_Totales'].drop('Ventas_Totales')
+
+for col, val in correlaciones.items():
+    print(f"  - Correlación entre {col} y Ventas_Totales: {val:.4f}")
+
+print("\n" + "="*60 + "\n")
+
+# =====================================================================
+# PARTE 3: PREDICCIÓN DE CUMPLIÓ META (CLASIFICACIÓN)
+# =====================================================================
+print("--- 3. Modelos de Clasificación (Predecir Cumplió Meta) ---")
+
+df['Cumplio_Meta_Bin'] = df['Cumplio_Meta'].map({'Si': 1, 'No': 0, 'Sí': 1})
+
+X_clf = df[columnas_interes]
+y_clf = df['Cumplio_Meta_Bin']
+
+X_train_c, X_test_c, y_train_c, y_test_c = train_test_split(X_clf, y_clf, test_size=0.3, random_state=42)
+
+modelos_clf = {
+    "Árbol de Decisión": DecisionTreeClassifier(random_state=42, max_depth=3),
+    "Naive Bayes": GaussianNB(),
+    "Regresión Logística": LogisticRegression(max_iter=1000, random_state=42)
+}
+
+for nombre, modelo in modelos_clf.items():
+    modelo.fit(X_train_c, y_train_c)
+    preds = modelo.predict(X_test_c)
+    acc = accuracy_score(y_test_c, preds)
+    print(f"\n>>> {nombre} <<<")
+    print(f"    Exactitud (Accuracy): {acc:.4f}")
+    print(classification_report(y_test_c, preds, target_names=['No Cumplió', 'Cumplió']))
+
+print("\n--- Estructura del Árbol de Decisión (Impresión Jerárquica) ---")
+
+arbol_texto = export_text(
+    modelos_clf["Árbol de Decisión"],
+    feature_names=columnas_interes,
+    class_names=['No Cumplió', 'Cumplió']
+)
+print(arbol_texto)
+
+print("\n" + "="*60 + "\n")
+
+# =====================================================================
+# PARTE 4: REGRESIÓN LINEAL Y MÚLTIPLE (PREDECIR VENTAS_TOTALES)
+# =====================================================================
+print("--- 4. Modelos de Regresión (Predecir Ventas_Totales) ---")
+
+predictor_simple = correlaciones.abs().idxmax()
+print(f"-> Regresión Lineal Simple (Predictor: {predictor_simple})")
+
+X_simple = df[[predictor_simple]]
+y_reg = df['Ventas_Totales']
+
+X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X_simple, y_reg, test_size=0.3, random_state=42)
+
+lr_simple = LinearRegression()
+lr_simple.fit(X_train_s, y_train_s)
+preds_s = lr_simple.predict(X_test_s)
+print(f"   R² (Bondad de ajuste): {r2_score(y_test_s, preds_s):.4f}")
+print(f"   RMSE (Error promedio): {np.sqrt(mean_squared_error(y_test_s, preds_s)):.2f}")
+
+print("\n-> Regresión Lineal Múltiple (Predictores: Gasto_Publicidad, Clientes_Atendidos, Satisfaccion_Cliente, Descuento_Promedio)")
+X_multiple = df[columnas_interes[:-1]] 
+
+X_train_m, X_test_m, y_train_m, y_test_m = train_test_split(X_multiple, y_reg, test_size=0.3, random_state=42)
+
+lr_multiple = LinearRegression()
+lr_multiple.fit(X_train_m, y_train_m)
+preds_m = lr_multiple.predict(X_test_m)
+print(f"   R² Score: {r2_score(y_test_m, preds_m):.4f}")
+print(f"   RMSE (Error promedio): {np.sqrt(mean_squared_error(y_test_m, preds_m)):.2f}")
