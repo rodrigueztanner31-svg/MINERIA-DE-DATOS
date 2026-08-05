@@ -2,7 +2,7 @@
 
 ## Tercer Parcial
 
-- [1. ]()
+- [1.k means ](https://github.com/rodrigueztanner31-svg/MINERIA-DE-DATOS/blob/main/k-means)
 - [2. ]()
 - [3.]()
 - [4.  ]()
