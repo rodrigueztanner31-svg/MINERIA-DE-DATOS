@@ -1,0 +1,97 @@
+#ACTIVIDAD 04-08-26 (ONLINE)
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+df = pd.read_csv("clientes.csv")
+print("Primeras filas del dataset:")
+print(df.head())
+#print("\nInformación del dataset:")
+#print(df.info())
+
+X = df[[
+    "Compras_Mensuales",
+    "Gasto_Mensual_MXN",
+    "Visitas_Web_Mensuales",
+    "Satisfaccion"
+]]
+
+y = df["Nivel_Consumo_Referencia"]
+
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.3,
+    random_state=42
+)
+
+escalador = StandardScaler()
+
+X_train_escalado = escalador.fit_transform(X_train)
+X_test_escalado = escalador.transform(X_test)
+
+modelo = MLPClassifier(
+    hidden_layer_sizes=(8, 6),
+    activation="relu",
+    max_iter=1000,
+    random_state=42
+)
+
+modelo.fit(X_train_escalado, y_train)
+
+predicciones = modelo.predict(X_test_escalado)
+
+exactitud = accuracy_score(y_test, predicciones)
+
+print("\nExactitud del modelo:")
+print(exactitud)
+
+print("\nMatriz de confusión:")
+print(confusion_matrix(y_test, predicciones))
+
+print("\nReporte de clasificación:")
+print(classification_report(y_test, predicciones))
+
+comparacion = pd.DataFrame({
+    "Real": y_test.values,
+    "Predicción": predicciones
+})
+
+print("\nComparación de resultados:")
+print(comparacion)
+
+nuevos_clientes = pd.DataFrame({
+    "Compras_Mensuales": [1, 10, 18],
+    "Gasto_Mensual_MXN": [500, 12000, 25000],
+    "Visitas_Web_Mensuales": [2, 25, 50],
+    "Satisfaccion": [2.5, 4.2, 5.0]
+})
+
+nuevos_clientes_escalados = escalador.transform(nuevos_clientes)
+
+predicciones_nuevas = modelo.predict(nuevos_clientes_escalados)
+
+print("\nPredicciones para nuevos clientes:")
+print(predicciones_nuevas)
+print("INTERPRETACION: La red neuronal identifica el nivel de consumo usando las compras, el gasto, las visitas web y la satisfacción. En general, los clientes con valores más altos en estas variables son clasificados como de alto consumo, mientras que los de valores bajos son clasificados como de bajo consumo.")
+print("1. ¿Qué predicción obtuvo cada cliente?
+Cliente 1: Bajo consumo.
+Cliente 2: Alto consumo.
+Cliente 3: Alto consumo.
+2. ¿La predicción tiene sentido?
+Sí, porque los clientes con mayor gasto y más compras fueron clasificados con mayor consumo.
+3. ¿Qué variable parece influir más?
+El gasto mensual, seguido del número de compras.
+4. ¿Qué pasa si aumentas el gasto mensual?
+Es más probable que el cliente sea clasificado como de alto consumo.
+5. ¿Qué pasa si disminuyes la satisfacción?
+Disminuye la probabilidad de que sea clasificado como de alto consumo.")
+plt.plot(modelo.loss_curve_)
+plt.xlabel("Iteraciones")
+plt.ylabel("Error o pérdida")
+plt.title("Proceso de aprendizaje de la red neuronal")
+plt.show()
