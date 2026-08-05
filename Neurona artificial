@@ -1,4 +1,3 @@
-#ACTIVIDAD 04-08-26 (ONLINE)
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
@@ -65,8 +64,8 @@ print("\nComparación de resultados:")
 print(comparacion)
 
 nuevos_clientes = pd.DataFrame({
-    "Compras_Mensuales": [1, 10, 18],
-    "Gasto_Mensual_MXN": [500, 12000, 25000],
+    "Compras_Mensuales": [2, 11, 20],
+    "Gasto_Mensual_MXN": [600, 13000, 27000],
     "Visitas_Web_Mensuales": [2, 25, 50],
     "Satisfaccion": [2.5, 4.2, 5.0]
 })
