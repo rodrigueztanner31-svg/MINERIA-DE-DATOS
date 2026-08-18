@@ -1,0 +1,1580 @@
+# ============================================================
+# Análisis de publicaciones institucionales
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. IMPORTAR LIBRERÍAS
+# ------------------------------------------------------------
+
+import pandas as pd
+import numpy as np
+import re
+import unicodedata
+import matplotlib.pyplot as plt
+from collections import Counter
+
+from google.colab import files
+
+
+# ------------------------------------------------------------
+# 2. CARGA DEL ARCHIVO
+# ------------------------------------------------------------
+
+print("=" * 60)
+print("1. CARGA DEL ARCHIVO")
+print("=" * 60)
+
+uploaded = files.upload()
+
+nombre_archivo = list(uploaded.keys())[0]
+
+if nombre_archivo.lower().endswith(".csv"):
+    df = pd.read_csv(nombre_archivo)
+elif nombre_archivo.lower().endswith((".xlsx", ".xls")):
+    df = pd.read_excel(nombre_archivo)
+else:
+    raise ValueError("El archivo debe ser CSV o Excel.")
+
+print(f"\nArchivo cargado: {nombre_archivo}")
+print(f"Filas: {df.shape[0]}")
+print(f"Columnas: {df.shape[1]}")
+
+print("\nColumnas encontradas:")
+print(df.columns.tolist())
+
+display(df.head())
+
+
+# ------------------------------------------------------------
+# 3. LIMPIEZA DE DATOS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("2. LIMPIEZA DE DATOS")
+print("=" * 60)
+
+df_limpio = df.copy()
+
+# Limpiar nombres de columnas
+df_limpio.columns = df_limpio.columns.str.strip()
+
+# Eliminar duplicados
+duplicados = df_limpio.duplicated().sum()
+df_limpio = df_limpio.drop_duplicates()
+
+print(f"Duplicados eliminados: {duplicados}")
+
+# Verificar columnas necesarias
+columnas_necesarias = [
+    "Texto_Publicacion",
+    "Hashtags",
+    "Tema_Referencia",
+    "Sentimiento_Referencia"
+]
+
+for columna in columnas_necesarias:
+    if columna not in df_limpio.columns:
+        raise ValueError(
+            f"No se encontró la columna: {columna}"
+        )
+
+# Crear columnas numéricas si existen
+for columna in ["Likes", "Comentarios", "Compartidos"]:
+    if columna in df_limpio.columns:
+        df_limpio[columna] = pd.to_numeric(
+            df_limpio[columna],
+            errors="coerce"
+        ).fillna(0)
+
+# Función de limpieza de texto
+def limpiar_texto(texto):
+
+    if pd.isna(texto):
+        return ""
+
+    texto = str(texto).lower()
+
+    # Eliminar URLs
+    texto = re.sub(
+        r"http\S+|www\S+",
+        "",
+        texto
+    )
+
+    # Eliminar menciones
+    texto = re.sub(
+        r"@\w+",
+        "",
+        texto
+    )
+
+    # Eliminar hashtags del texto
+    texto = re.sub(
+        r"#\w+",
+        "",
+        texto
+    )
+
+    # Eliminar números
+    texto = re.sub(
+        r"\d+",
+        "",
+        texto
+    )
+
+    # Eliminar caracteres especiales
+    texto = re.sub(
+        r"[^\w\sáéíóúüñ]",
+        " ",
+        texto
+    )
+
+    # Eliminar espacios repetidos
+    texto = re.sub(
+        r"\s+",
+        " ",
+        texto
+    )
+
+    return texto.strip()
+
+
+df_limpio["Texto_Limpio"] = (
+    df_limpio["Texto_Publicacion"]
+    .fillna("")
+    .apply(limpiar_texto)
+)
+
+df_limpio["Hashtags"] = (
+    df_limpio["Hashtags"]
+    .fillna("")
+)
+
+df_limpio["Tema_Referencia"] = (
+    df_limpio["Tema_Referencia"]
+    .fillna("sin tema")
+    .astype(str)
+    .str.strip()
+    .str.lower()
+)
+
+df_limpio["Sentimiento_Referencia"] = (
+    df_limpio["Sentimiento_Referencia"]
+    .fillna("neutral")
+    .astype(str)
+    .str.strip()
+    .str.lower()
+)
+
+# Normalizar "Positivo" / "POSITIVO", etc.
+df_limpio["Sentimiento_Referencia"] = (
+    df_limpio["Sentimiento_Referencia"]
+    .replace({
+        "positivo": "positivo",
+        "positiva": "positivo",
+        "negativo": "negativo",
+        "negativa": "negativo",
+        "neutral": "neutral",
+        "neutro": "neutral"
+    })
+)
+
+print(f"Registros después de limpieza: {len(df_limpio)}")
+
+print("\nValores faltantes:")
+print(df_limpio.isnull().sum())
+
+
+# ------------------------------------------------------------
+# 4. TOP 10 PALABRAS FRECUENTES
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("3. TOP 10 PALABRAS MÁS FRECUENTES")
+print("=" * 60)
+
+stopwords = set("""
+a al algo algunas algunos ante antes como con contra cual cuando de del
+desde donde dos el ella ellas ellos en entre era es esa esas ese esos
+esta estas este estos fue ha hasta hay la las le les lo los más me mi
+mis mucho muy no nos o para pero por porque que quien se sin sobre son
+su sus también te tengo tiene un una uno unos y ya yo gracias tomar cuenta
+esto experiencia estudiantes universidad campus institución
+""".split())
+
+palabras = []
+
+for texto in df_limpio["Texto_Limpio"]:
+
+    tokens = texto.split()
+
+    for palabra in tokens:
+
+        if (
+            palabra not in stopwords
+            and len(palabra) > 2
+        ):
+            palabras.append(palabra)
+
+
+frecuencias = Counter(palabras)
+
+top10_palabras = frecuencias.most_common(10)
+
+tabla_palabras = pd.DataFrame(
+    top10_palabras,
+    columns=["Palabra", "Frecuencia"]
+)
+
+display(tabla_palabras)
+
+
+# ------------------------------------------------------------
+# 5. GRÁFICA DE SENTIMIENTOS DE REFERENCIA
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("4. GRÁFICA DE SENTIMIENTOS")
+print("=" * 60)
+
+sentimientos = (
+    df_limpio["Sentimiento_Referencia"]
+    .value_counts()
+)
+
+print(sentimientos)
+
+plt.figure(figsize=(8, 5))
+
+sentimientos.plot(
+    kind="bar"
+)
+
+plt.title(
+    "Distribución de sentimientos de referencia"
+)
+
+plt.xlabel("Sentimiento")
+plt.ylabel("Número de publicaciones")
+
+plt.xticks(rotation=0)
+
+plt.grid(
+    axis="y",
+    alpha=0.3
+)
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# 6. ANÁLISIS POR TEMA
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("5. ANÁLISIS POR TEMA")
+print("=" * 60)
+
+analisis_tema = pd.crosstab(
+    df_limpio["Tema_Referencia"],
+    df_limpio["Sentimiento_Referencia"]
+)
+
+print("Publicaciones por tema y sentimiento:")
+
+display(analisis_tema)
+
+print("\nTotal de publicaciones por tema:")
+
+total_tema = (
+    df_limpio["Tema_Referencia"]
+    .value_counts()
+)
+
+display(total_tema.to_frame("Publicaciones"))
+
+
+# ------------------------------------------------------------
+# 7. RESUMEN DE INTERACCIONES POR TEMA
+# ------------------------------------------------------------
+
+if all(
+    col in df_limpio.columns
+    for col in ["Likes", "Comentarios", "Compartidos"]
+):
+
+    resumen_tema = (
+        df_limpio
+        .groupby("Tema_Referencia")
+        .agg(
+            Publicaciones=("Texto_Publicacion", "count"),
+            Promedio_Likes=("Likes", "mean"),
+            Promedio_Comentarios=("Comentarios", "mean"),
+            Promedio_Compartidos=("Compartidos", "mean")
+        )
+        .round(2)
+    )
+
+    print("\nInteracción promedio por tema:")
+
+    display(resumen_tema)
+
+
+# ------------------------------------------------------------
+# 8. TOP 10 HASHTAGS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("6. TOP 10 HASHTAGS")
+print("=" * 60)
+
+hashtags = []
+
+for texto in df_limpio["Hashtags"]:
+
+    encontrados = re.findall(
+        r"#\w+",
+        str(texto).lower()
+    )
+
+    hashtags.extend(encontrados)
+
+
+frecuencia_hashtags = Counter(hashtags)
+
+top10_hashtags = (
+    frecuencia_hashtags
+    .most_common(10)
+)
+
+tabla_hashtags = pd.DataFrame(
+    top10_hashtags,
+    columns=["Hashtag", "Frecuencia"]
+)
+
+display(tabla_hashtags)
+
+
+# Gráfica de hashtags
+
+if len(tabla_hashtags) > 0:
+
+    plt.figure(figsize=(10, 5))
+
+    plt.bar(
+        tabla_hashtags["Hashtag"],
+        tabla_hashtags["Frecuencia"]
+    )
+
+    plt.title(
+        "Top 10 hashtags más frecuentes"
+    )
+
+    plt.xlabel("Hashtag")
+    plt.ylabel("Frecuencia")
+
+    plt.xticks(
+        rotation=45,
+        ha="right"
+    )
+
+    plt.grid(
+        axis="y",
+        alpha=0.3
+    )
+
+    plt.tight_layout()
+    plt.show()
+
+
+# ------------------------------------------------------------
+# 9. CLASIFICACIÓN SIMPLE DE SENTIMIENTO
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("7. CLASIFICACIÓN SIMPLE DE SENTIMIENTO")
+print("=" * 60)
+
+
+# Palabras positivas
+positivas = set("""
+buena bueno buenas buenos excelente excelentes genial gusto gustó gustar
+encantó útil útiles sencillo sencilla clara claro ordenada ordenado rápido
+rápida amable tranquila tranquilo mejora mejorar entendido entendí pude
+terminar aprendí interesante bien perfecto perfecta satisfecho satisfecha
+resolvieron solución organizada organización claros ayudaron ayudó estable
+funcionó atención apoyo disponible disponible excelente mejor
+""".split())
+
+
+# Palabras negativas
+negativas = set("""
+mala malo malas malos pésimo pésima confuso confusa confusión lento lenta
+lentitud error errores problema problemas falló cayó caídas perdimos falta
+faltan faltaron incompleto incompleta fría frio tarde pesada pesado difícil
+dificil corto corta poco poca perdí perdi perdido afecta cerró cerrado
+cerrada soporte queja quejas urge llena tardaron diferentes mala pésimo
+pésima falla fallas deficiente deficiencia
+""".split())
+
+
+# Normalización de acentos
+def normalizar(texto):
+
+    texto = str(texto).lower()
+
+    return "".join(
+        c
+        for c in unicodedata.normalize(
+            "NFD",
+            texto
+        )
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+positivas = {
+    normalizar(x)
+    for x in positivas
+}
+
+negativas = {
+    normalizar(x)
+    for x in negativas
+}
+
+
+# Frases positivas
+frases_positivas = {
+
+    "por fin": 2,
+    "me gusto": 2,
+    "muy buena": 2,
+    "muy bueno": 2,
+    "buena mejora": 2,
+    "me ayudaron": 2,
+    "me atendieron rapido": 2,
+    "resolvieron mi duda": 2,
+    "pude estudiar": 1,
+    "pude conectarme": 1
+
+}
+
+
+# Frases negativas
+frases_negativas = {
+
+    "no pude": 2,
+    "no entendi": 2,
+    "se cayo": 2,
+    "muy lento": 2,
+    "muy lenta": 2,
+    "poca organizacion": 2,
+    "se cerro": 2,
+    "perdi mucho tiempo": 2,
+    "documentos diferentes": 2,
+    "urge mejorar": 2,
+    "sin solucion": 2,
+    "salio incompleto": 2
+
+}
+
+
+def clasificar_sentimiento(texto):
+
+    texto_normalizado = normalizar(texto)
+
+    puntos_positivos = 0
+    puntos_negativos = 0
+
+
+    # Analizar frases positivas
+    for frase, peso in frases_positivas.items():
+
+        if normalizar(frase) in texto_normalizado:
+
+            puntos_positivos += peso
+
+
+    # Analizar frases negativas
+    for frase, peso in frases_negativas.items():
+
+        if normalizar(frase) in texto_normalizado:
+
+            puntos_negativos += peso
+
+
+    # Analizar palabras
+    palabras_texto = re.findall(
+        r"[a-záéíóúüñ]+",
+        str(texto).lower()
+    )
+
+
+    for palabra in palabras_texto:
+
+        palabra = normalizar(palabra)
+
+        if palabra in positivas:
+
+            puntos_positivos += 1
+
+        if palabra in negativas:
+
+            puntos_negativos += 1
+
+
+    # Resultado
+    if puntos_positivos > puntos_negativos:
+
+        return "positivo"
+
+    elif puntos_negativos > puntos_positivos:
+
+        return "negativo"
+
+    else:
+
+        return "neutral"
+
+
+df_limpio["Sentimiento_Calculado"] = (
+    df_limpio["Texto_Publicacion"]
+    .fillna("")
+    .apply(clasificar_sentimiento)
+)
+
+
+print("Resultados de clasificación:")
+
+display(
+    df_limpio[
+        [
+            "Texto_Publicacion",
+            "Sentimiento_Calculado"
+        ]
+    ].head(15)
+)
+
+
+# ------------------------------------------------------------
+# 10. COMPARACIÓN ENTRE SENTIMIENTOS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("8. COMPARACIÓN ENTRE SENTIMIENTO CALCULADO Y REFERENCIA")
+print("=" * 60)
+
+
+comparacion = pd.crosstab(
+
+    df_limpio["Sentimiento_Referencia"],
+
+    df_limpio["Sentimiento_Calculado"],
+
+    rownames=[
+        "Sentimiento de referencia"
+    ],
+
+    colnames=[
+        "Sentimiento calculado"
+    ]
+
+)
+
+
+display(comparacion)
+
+
+# ------------------------------------------------------------
+# 11. PRECISIÓN DEL CLASIFICADOR
+# ------------------------------------------------------------
+
+aciertos = (
+
+    df_limpio["Sentimiento_Referencia"]
+
+    ==
+
+    df_limpio["Sentimiento_Calculado"]
+
+).sum()
+
+
+total = len(df_limpio)
+
+precision = (
+    aciertos /
+    total
+) * 100
+
+
+print(
+    f"\nAciertos: {aciertos} de {total}"
+)
+
+print(
+    f"Precisión del clasificador: {precision:.2f}%"
+)
+
+
+# ------------------------------------------------------------
+# 12. GRÁFICA COMPARATIVA
+# ------------------------------------------------------------
+
+comparacion.plot(
+    kind="bar",
+    figsize=(9, 5)
+)
+
+plt.title(
+    "Comparación entre sentimiento calculado y de referencia"
+)
+
+plt.xlabel(
+    "Sentimiento de referencia"
+)
+
+plt.ylabel(
+    "Número de publicaciones"
+)
+
+plt.xticks(
+    rotation=0
+)
+
+plt.legend(
+    title="Sentimiento calculado"
+)
+
+plt.grid(
+    axis="y",
+    alpha=0.3
+)
+
+plt.tight_layout()
+
+plt.show()
+
+
+# ------------------------------------------------------------
+# 13. TABLA FINAL DE RESULTADOS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("9. RESUMEN FINAL")
+print("=" * 60)
+
+
+print(
+    f"\nTotal de publicaciones analizadas: {len(df_limpio)}"
+)
+
+print(
+    f"Precisión del clasificador: {precision:.2f}%"
+)
+
+
+print("\nDistribución de sentimientos:")
+
+display(
+    df_limpio[
+        "Sentimiento_Referencia"
+    ].value_counts()
+    .to_frame("Cantidad")
+)
+
+
+print("\nTop 10 palabras:")
+
+display(tabla_palabras)
+
+
+print("\nTop 10 hashtags:")
+
+display(tabla_hashtags)
+
+
+print("\nTemas principales:")
+
+display(
+    total_tema.to_frame(
+        "Publicaciones"
+    )
+)
+
+
+# ------------------------------------------------------------
+# 14. CONCLUSIONES AUTOMÁTICAS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("10. CONCLUSIONES")
+print("=" * 60)
+
+
+sentimiento_principal = (
+    df_limpio["Sentimiento_Referencia"]
+    .value_counts()
+    .idxmax()
+)
+
+tema_principal = (
+    df_limpio["Tema_Referencia"]
+    .value_counts()
+    .idxmax()
+)
+
+palabra_principal = (
+    top10_palabras[0][0]
+    if len(top10_palabras) > 0
+    else "N/A"
+)
+
+hashtag_principal = (
+    top10_hashtags[0][0]
+    if len(top10_hashtags) > 0
+    else "N/A"
+)
+
+
+conclusiones = [
+
+    f"1. El sentimiento de referencia predominante en las publicaciones es '{sentimiento_principal}', lo que permite identificar la percepción general de los estudiantes.",
+
+    f"2. El tema con mayor cantidad de publicaciones es '{tema_principal}', por lo que representa uno de los principales puntos de interés de la comunidad.",
+
+    f"3. La palabra más frecuente identificada en las publicaciones es '{palabra_principal}', mostrando uno de los conceptos más recurrentes dentro de las conversaciones.",
+
+    f"4. El hashtag más utilizado es '{hashtag_principal}', lo que ayuda a identificar uno de los principales temas de conversación en redes sociales.",
+
+    f"5. El clasificador simple obtuvo una coincidencia del {precision:.2f}% con el sentimiento de referencia, demostrando que un análisis basado en palabras y frases puede ser útil como primera aproximación.",
+
+    "6. El análisis de sentimientos permite detectar opiniones favorables, problemas y áreas de oportunidad sin necesidad de revisar manualmente todas las publicaciones.",
+
+    "7. El análisis por tema permite relacionar las opiniones de los estudiantes con áreas específicas de la institución y facilita la toma de decisiones."
+]
+
+
+for conclusion in conclusiones:
+
+    print(conclusion)
+
+
+# ------------------------------------------------------------
+# 15. RECOMENDACIONES PARA LA INSTITUCIÓN
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("11. RECOMENDACIONES PARA LA INSTITUCIÓN")
+print("=" * 60)
+
+
+recomendaciones = [
+
+    "1. Implementar un monitoreo periódico de redes sociales para detectar problemas y conocer la percepción de los estudiantes en tiempo real.",
+
+    "2. Mejorar los servicios que concentren mayor cantidad de opiniones negativas, priorizando aquellos relacionados con conectividad, atención, plataformas y recursos institucionales.",
+
+    "3. Establecer mecanismos digitales para recibir, clasificar y dar seguimiento a las quejas y sugerencias de los estudiantes.",
+
+    "4. Mejorar la comunicación institucional mediante información clara y oportuna sobre eventos, trámites, horarios y servicios.",
+
+    "5. Realizar análisis periódicos de sentimiento para comprobar si las acciones implementadas generan una mejora en la percepción de los estudiantes."
+]
+
+
+for recomendacion in recomendaciones:
+
+    print(recomendacion)
+
+
+# ------------------------------------------------------------
+# 16. EXPORTAR RESULTADOS A EXCEL
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("12. EXPORTACIÓN DE RESULTADOS")
+print("=" * 60)
+
+
+nombre_salida = "resultado_mineria_textos.xlsx"
+
+
+with pd.ExcelWriter(
+    nombre_salida,
+    engine="openpyxl"
+) as writer:
+
+    df_limpio.to_excel(
+        writer,
+        sheet_name="Datos_Analizados",
+        index=False
+    )
+
+    tabla_palabras.to_excel(
+        writer,
+        sheet_name="Top_Palabras",
+        index=False
+    )
+
+    tabla_hashtags.to_excel(
+        writer,
+        sheet_name="Top_Hashtags",
+        index=False
+    )
+
+    analisis_tema.to_excel(
+        writer,
+        sheet_name="Analisis_Temas"
+    )
+
+    comparacion.to_excel(
+        writer,
+        sheet_name="Comparacion_Sentimientos"
+    )
+
+
+print(
+    f"\nArchivo generado: {nombre_salida}"
+)
+
+
+# Descargar automáticamente
+files.download(nombre_salida)
+
+
+print("\n" + "=" * 60)
+print("ANÁLISIS COMPLETADO")
+print("=" * 60)
+print("Todas las actividades fueron ejecutadas correctamente.")]
+
+for columna in columnas_necesarias:
+    if columna not in df_limpio.columns:
+        raise ValueError(
+            f"No se encontró la columna: {columna}"
+        )
+
+# Crear columnas numéricas si existen
+for columna in ["Likes", "Comentarios", "Compartidos"]:
+    if columna in df_limpio.columns:
+        df_limpio[columna] = pd.to_numeric(
+            df_limpio[columna],
+            errors="coerce"
+        ).fillna(0)
+
+# Función de limpieza de texto
+def limpiar_texto(texto):
+
+    if pd.isna(texto):
+        return ""
+
+    texto = str(texto).lower()
+
+    # Eliminar URLs
+    texto = re.sub(
+        r"http\S+|www\S+",
+        "",
+        texto
+    )
+
+    # Eliminar menciones
+    texto = re.sub(
+        r"@\w+",
+        "",
+        texto
+    )
+
+    # Eliminar hashtags del texto
+    texto = re.sub(
+        r"#\w+",
+        "",
+        texto
+    )
+
+    # Eliminar números
+    texto = re.sub(
+        r"\d+",
+        "",
+        texto
+    )
+
+    # Eliminar caracteres especiales
+    texto = re.sub(
+        r"[^\w\sáéíóúüñ]",
+        " ",
+        texto
+    )
+
+    # Eliminar espacios repetidos
+    texto = re.sub(
+        r"\s+",
+        " ",
+        texto
+    )
+
+    return texto.strip()
+
+
+df_limpio["Texto_Limpio"] = (
+    df_limpio["Texto_Publicacion"]
+    .fillna("")
+    .apply(limpiar_texto)
+)
+
+df_limpio["Hashtags"] = (
+    df_limpio["Hashtags"]
+    .fillna("")
+)
+
+df_limpio["Tema_Referencia"] = (
+    df_limpio["Tema_Referencia"]
+    .fillna("sin tema")
+    .astype(str)
+    .str.strip()
+    .str.lower()
+)
+
+df_limpio["Sentimiento_Referencia"] = (
+    df_limpio["Sentimiento_Referencia"]
+    .fillna("neutral")
+    .astype(str)
+    .str.strip()
+    .str.lower()
+)
+
+# Normalizar "Positivo" / "POSITIVO", etc.
+df_limpio["Sentimiento_Referencia"] = (
+    df_limpio["Sentimiento_Referencia"]
+    .replace({
+        "positivo": "positivo",
+        "positiva": "positivo",
+        "negativo": "negativo",
+        "negativa": "negativo",
+        "neutral": "neutral",
+        "neutro": "neutral"
+    })
+)
+
+print(f"Registros después de limpieza: {len(df_limpio)}")
+
+print("\nValores faltantes:")
+print(df_limpio.isnull().sum())
+
+
+# ------------------------------------------------------------
+# 4. TOP 10 PALABRAS FRECUENTES
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("3. TOP 10 PALABRAS MÁS FRECUENTES")
+print("=" * 60)
+
+stopwords = set("""
+a al algo algunas algunos ante antes como con contra cual cuando de del
+desde donde dos el ella ellas ellos en entre era es esa esas ese esos
+esta estas este estos fue ha hasta hay la las le les lo los más me mi
+mis mucho muy no nos o para pero por porque que quien se sin sobre son
+su sus también te tengo tiene un una uno unos y ya yo gracias tomar cuenta
+esto experiencia estudiantes universidad campus institución
+""".split())
+
+palabras = []
+
+for texto in df_limpio["Texto_Limpio"]:
+
+    tokens = texto.split()
+
+    for palabra in tokens:
+
+        if (
+            palabra not in stopwords
+            and len(palabra) > 2
+        ):
+            palabras.append(palabra)
+
+
+frecuencias = Counter(palabras)
+
+top10_palabras = frecuencias.most_common(10)
+
+tabla_palabras = pd.DataFrame(
+    top10_palabras,
+    columns=["Palabra", "Frecuencia"]
+)
+
+display(tabla_palabras)
+
+print("\n" + "=" * 60)
+print("4. GRÁFICA DE SENTIMIENTOS")
+print("=" * 60)
+
+sentimientos = (
+    df_limpio["Sentimiento_Referencia"]
+    .value_counts()
+)
+
+print(sentimientos)
+
+plt.figure(figsize=(8, 5))
+
+sentimientos.plot(
+    kind="bar"
+)
+
+plt.title(
+    "Distribución de sentimientos de referencia"
+)
+
+plt.xlabel("Sentimiento")
+plt.ylabel("Número de publicaciones")
+
+plt.xticks(rotation=0)
+
+plt.grid(
+    axis="y",
+    alpha=0.3
+)
+
+plt.tight_layout()
+plt.show()
+
+
+print("\n" + "=" * 60)
+print("5. ANÁLISIS POR TEMA")
+print("=" * 60)
+
+analisis_tema = pd.crosstab(
+    df_limpio["Tema_Referencia"],
+    df_limpio["Sentimiento_Referencia"]
+)
+
+print("Publicaciones por tema y sentimiento:")
+
+display(analisis_tema)
+
+print("\nTotal de publicaciones por tema:")
+
+total_tema = (
+    df_limpio["Tema_Referencia"]
+    .value_counts()
+)
+
+display(total_tema.to_frame("Publicaciones"))
+
+if all(
+    col in df_limpio.columns
+    for col in ["Likes", "Comentarios", "Compartidos"]
+):
+
+    resumen_tema = (
+        df_limpio
+        .groupby("Tema_Referencia")
+        .agg(
+            Publicaciones=("Texto_Publicacion", "count"),
+            Promedio_Likes=("Likes", "mean"),
+            Promedio_Comentarios=("Comentarios", "mean"),
+            Promedio_Compartidos=("Compartidos", "mean")
+        )
+        .round(2)
+    )
+
+    print("\nInteracción promedio por tema:")
+
+    display(resumen_tema)
+
+
+print("\n" + "=" * 60)
+print("6. TOP 10 HASHTAGS")
+print("=" * 60)
+
+hashtags = []
+
+for texto in df_limpio["Hashtags"]:
+
+    encontrados = re.findall(
+        r"#\w+",
+        str(texto).lower()
+    )
+
+    hashtags.extend(encontrados)
+
+
+frecuencia_hashtags = Counter(hashtags)
+
+top10_hashtags = (
+    frecuencia_hashtags
+    .most_common(10)
+)
+
+tabla_hashtags = pd.DataFrame(
+    top10_hashtags,
+    columns=["Hashtag", "Frecuencia"]
+)
+
+display(tabla_hashtags)
+
+
+# Gráfica de hashtags
+
+if len(tabla_hashtags) > 0:
+
+    plt.figure(figsize=(10, 5))
+
+    plt.bar(
+        tabla_hashtags["Hashtag"],
+        tabla_hashtags["Frecuencia"]
+    )
+
+    plt.title(
+        "Top 10 hashtags más frecuentes"
+    )
+
+    plt.xlabel("Hashtag")
+    plt.ylabel("Frecuencia")
+
+    plt.xticks(
+        rotation=45,
+        ha="right"
+    )
+
+    plt.grid(
+        axis="y",
+        alpha=0.3
+    )
+
+    plt.tight_layout()
+    plt.show()
+
+
+print("\n" + "=" * 60)
+print("7. CLASIFICACIÓN SIMPLE DE SENTIMIENTO")
+print("=" * 60)
+
+
+# Palabras positivas
+positivas = set("""
+buena bueno buenas buenos excelente excelentes genial gusto gustó gustar
+encantó útil útiles sencillo sencilla clara claro ordenada ordenado rápido
+rápida amable tranquila tranquilo mejora mejorar entendido entendí pude
+terminar aprendí interesante bien perfecto perfecta satisfecho satisfecha
+resolvieron solución organizada organización claros ayudaron ayudó estable
+funcionó atención apoyo disponible disponible excelente mejor
+""".split())
+
+
+# Palabras negativas
+negativas = set("""
+mala malo malas malos pésimo pésima confuso confusa confusión lento lenta
+lentitud error errores problema problemas falló cayó caídas perdimos falta
+faltan faltaron incompleto incompleta fría frio tarde pesada pesado difícil
+dificil corto corta poco poca perdí perdi perdido afecta cerró cerrado
+cerrada soporte queja quejas urge llena tardaron diferentes mala pésimo
+pésima falla fallas deficiente deficiencia
+""".split())
+
+
+# Normalización de acentos
+def normalizar(texto):
+
+    texto = str(texto).lower()
+
+    return "".join(
+        c
+        for c in unicodedata.normalize(
+            "NFD",
+            texto
+        )
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+positivas = {
+    normalizar(x)
+    for x in positivas
+}
+
+negativas = {
+    normalizar(x)
+    for x in negativas
+}
+
+
+# Frases positivas
+frases_positivas = {
+
+    "por fin": 2,
+    "me gusto": 2,
+    "muy buena": 2,
+    "muy bueno": 2,
+    "buena mejora": 2,
+    "me ayudaron": 2,
+    "me atendieron rapido": 2,
+    "resolvieron mi duda": 2,
+    "pude estudiar": 1,
+    "pude conectarme": 1
+
+}
+
+
+# Frases negativas
+frases_negativas = {
+
+    "no pude": 2,
+    "no entendi": 2,
+    "se cayo": 2,
+    "muy lento": 2,
+    "muy lenta": 2,
+    "poca organizacion": 2,
+    "se cerro": 2,
+    "perdi mucho tiempo": 2,
+    "documentos diferentes": 2,
+    "urge mejorar": 2,
+    "sin solucion": 2,
+    "salio incompleto": 2
+
+}
+
+
+def clasificar_sentimiento(texto):
+
+    texto_normalizado = normalizar(texto)
+
+    puntos_positivos = 0
+    puntos_negativos = 0
+
+
+    # Analizar frases positivas
+    for frase, peso in frases_positivas.items():
+
+        if normalizar(frase) in texto_normalizado:
+
+            puntos_positivos += peso
+
+
+    # Analizar frases negativas
+    for frase, peso in frases_negativas.items():
+
+        if normalizar(frase) in texto_normalizado:
+
+            puntos_negativos += peso
+
+
+    # Analizar palabras
+    palabras_texto = re.findall(
+        r"[a-záéíóúüñ]+",
+        str(texto).lower()
+    )
+
+
+    for palabra in palabras_texto:
+
+        palabra = normalizar(palabra)
+
+        if palabra in positivas:
+
+            puntos_positivos += 1
+
+        if palabra in negativas:
+
+            puntos_negativos += 1
+
+
+    # Resultado
+    if puntos_positivos > puntos_negativos:
+
+        return "positivo"
+
+    elif puntos_negativos > puntos_positivos:
+
+        return "negativo"
+
+    else:
+
+        return "neutral"
+
+
+df_limpio["Sentimiento_Calculado"] = (
+    df_limpio["Texto_Publicacion"]
+    .fillna("")
+    .apply(clasificar_sentimiento)
+)
+
+
+print("Resultados de clasificación:")
+
+display(
+    df_limpio[
+        [
+            "Texto_Publicacion",
+            "Sentimiento_Calculado"
+        ]
+    ].head(15)
+)
+
+print("\n" + "=" * 60)
+print("8. COMPARACIÓN ENTRE SENTIMIENTO CALCULADO Y REFERENCIA")
+print("=" * 60)
+
+
+comparacion = pd.crosstab(
+
+    df_limpio["Sentimiento_Referencia"],
+
+    df_limpio["Sentimiento_Calculado"],
+
+    rownames=[
+        "Sentimiento de referencia"
+    ],
+
+    colnames=[
+        "Sentimiento calculado"
+    ]
+
+)
+
+
+display(comparacion)
+
+
+aciertos = (
+
+    df_limpio["Sentimiento_Referencia"]
+
+    ==
+
+    df_limpio["Sentimiento_Calculado"]
+
+).sum()
+
+
+total = len(df_limpio)
+
+precision = (
+    aciertos /
+    total
+) * 100
+
+
+print(
+    f"\nAciertos: {aciertos} de {total}"
+)
+
+print(
+    f"Precisión del clasificador: {precision:.2f}%"
+)
+
+
+
+    kind="bar",
+    figsize=(9, 5)
+)
+
+plt.title(
+    "Comparación entre sentimiento calculado y de referencia"
+)
+
+plt.xlabel(
+    "Sentimiento de referencia"
+)
+
+plt.ylabel(
+    "Número de publicaciones"
+)
+
+plt.xticks(
+    rotation=0
+)
+
+plt.legend(
+    title="Sentimiento calculado"
+)
+
+plt.grid(
+    axis="y",
+    alpha=0.3
+)
+
+plt.tight_layout()
+
+plt.show()
+
+
+
+print("\n" + "=" * 60)
+print("9. RESUMEN FINAL")
+print("=" * 60)
+
+
+print(
+    f"\nTotal de publicaciones analizadas: {len(df_limpio)}"
+)
+
+print(
+    f"Precisión del clasificador: {precision:.2f}%"
+)
+
+
+print("\nDistribución de sentimientos:")
+
+display(
+    df_limpio[
+        "Sentimiento_Referencia"
+    ].value_counts()
+    .to_frame("Cantidad")
+)
+
+
+print("\nTop 10 palabras:")
+
+display(tabla_palabras)
+
+
+print("\nTop 10 hashtags:")
+
+display(tabla_hashtags)
+
+
+print("\nTemas principales:")
+
+display(
+    total_tema.to_frame(
+        "Publicaciones"
+    )
+)
+
+
+
+print("\n" + "=" * 60)
+print("10. CONCLUSIONES")
+print("=" * 60)
+
+
+sentimiento_principal = (
+    df_limpio["Sentimiento_Referencia"]
+    .value_counts()
+    .idxmax()
+)
+
+tema_principal = (
+    df_limpio["Tema_Referencia"]
+    .value_counts()
+    .idxmax()
+)
+
+palabra_principal = (
+    top10_palabras[0][0]
+    if len(top10_palabras) > 0
+    else "N/A"
+)
+
+hashtag_principal = (
+    top10_hashtags[0][0]
+    if len(top10_hashtags) > 0
+    else "N/A"
+)
+
+
+conclusiones = [
+
+    f"1. El sentimiento de referencia predominante en las publicaciones es '{sentimiento_principal}', lo que permite identificar la percepción general de los estudiantes.",
+
+    f"2. El tema con mayor cantidad de publicaciones es '{tema_principal}', por lo que representa uno de los principales puntos de interés de la comunidad.",
+
+    f"3. La palabra más frecuente identificada en las publicaciones es '{palabra_principal}', mostrando uno de los conceptos más recurrentes dentro de las conversaciones.",
+
+    f"4. El hashtag más utilizado es '{hashtag_principal}', lo que ayuda a identificar uno de los principales temas de conversación en redes sociales.",
+
+    f"5. El clasificador simple obtuvo una coincidencia del {precision:.2f}% con el sentimiento de referencia, demostrando que un análisis basado en palabras y frases puede ser útil como primera aproximación.",
+
+    "6. El análisis de sentimientos permite detectar opiniones favorables, problemas y áreas de oportunidad sin necesidad de revisar manualmente todas las publicaciones.",
+
+    "7. El análisis por tema permite relacionar las opiniones de los estudiantes con áreas específicas de la institución y facilita la toma de decisiones."
+]
+
+
+for conclusion in conclusiones:
+
+    print(conclusion)
+
+
+print("\n" + "=" * 60)
+print("11. RECOMENDACIONES PARA LA INSTITUCIÓN")
+print("=" * 60)
+
+
+recomendaciones = [
+
+    "1. Implementar un monitoreo periódico de redes sociales para detectar problemas y conocer la percepción de los estudiantes en tiempo real.",
+
+    "2. Mejorar los servicios que concentren mayor cantidad de opiniones negativas, priorizando aquellos relacionados con conectividad, atención, plataformas y recursos institucionales.",
+
+    "3. Establecer mecanismos digitales para recibir, clasificar y dar seguimiento a las quejas y sugerencias de los estudiantes.",
+
+    "4. Mejorar la comunicación institucional mediante información clara y oportuna sobre eventos, trámites, horarios y servicios.",
+
+    "5. Realizar análisis periódicos de sentimiento para comprobar si las acciones implementadas generan una mejora en la percepción de los estudiantes."
+]
+
+
+for recomendacion in recomendaciones:
+
+    print(recomendacion)
+
+
+print("\n" + "=" * 60)
+print("12. EXPORTACIÓN DE RESULTADOS")
+print("=" * 60)
+
+
+nombre_salida = "resultado_mineria_textos.xlsx"
+
+
+with pd.ExcelWriter(
+    nombre_salida,
+    engine="openpyxl"
+) as writer:
+
+    df_limpio.to_excel(
+        writer,
+        sheet_name="Datos_Analizados",
+        index=False
+    )
+
+    tabla_palabras.to_excel(
+        writer,
+        sheet_name="Top_Palabras",
+        index=False
+    )
+
+    tabla_hashtags.to_excel(
+        writer,
+        sheet_name="Top_Hashtags",
+        index=False
+    )
+
+    analisis_tema.to_excel(
+        writer,
+        sheet_name="Analisis_Temas"
+    )
+
+    comparacion.to_excel(
+        writer,
+        sheet_name="Comparacion_Sentimientos"
+    )
+
+
+print(
+    f"\nArchivo generado: {nombre_salida}"
+)
+
+
+# Descargar automáticamente
+files.download(nombre_salida)
+
+
+print("\n" + "=" * 60)
+print("ANÁLISIS COMPLETADO")
+print("=" * 60)
+print("Todas las actividades fueron ejecutadas correctamente.")
